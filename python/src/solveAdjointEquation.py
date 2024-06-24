@@ -7,18 +7,18 @@ from typing import List
 from ufl import ds, dx, grad, inner
 import ufl
 
-def solveAdjointEquation(V: fem.FunctionSpace, control: List[fem.Function], params, bcs=[]):
+def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
     control.reverse()
-    pT = fem.Function(V)
+    pT = fem.Function(params.V)
     pT.interpolate(lambda x : np.zeros(x[0].shape))
-    pT1 = fem.Function(V)
+    pT1 = fem.Function(params.V)
     pT1.interpolate(lambda x : np.zeros(x[0].shape))
     solution = [pT]
 
-    p = ufl.TrialFunction(V)
-    v = ufl.TestFunction(V)
+    p = ufl.TrialFunction(params.V)
+    v = ufl.TestFunction(params.V)
     c = (params.dt**2 * params.waveSpeed**2)
-    g = fem.Function(V)
+    g = fem.Function(params.V)
     g.x.array[:] = control[0].x.array
     a = inner(p,  v) * dx + c * inner(grad(p),grad(v)) * dx
     L = 2 * inner(pT, v) * dx - inner(pT1, v) * dx + c * inner(g, v) * dx

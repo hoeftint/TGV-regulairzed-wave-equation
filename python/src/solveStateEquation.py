@@ -8,27 +8,27 @@ import ufl
 import matplotlib as mpl
 import pyvista
 
-def getSourceTerm(V: fem.FunctionSpace, point, params):
-    g1 = fem.Function(V)
-    #g1.interpolate(lambda x: np.minimum(1 / (np.abs(alpha) * np.sqrt(np.pi)) *
+def getSourceTerm(point, params) -> fem.Function:
+    g = fem.Function(params.V)
+    #g.interpolate(lambda x: np.minimum(1 / (np.abs(alpha) * np.sqrt(np.pi)) *
     #                      np.exp(-(((x[0] - point[0])**2 + (x[1] - point[1])**2) / (alpha**2))), 1))
-    g1.interpolate(lambda x: 1 / (np.abs(params.alpha) * np.sqrt(np.pi)) *
+    g.interpolate(lambda x: 1 / (np.abs(params.alpha) * np.sqrt(np.pi)) *
                         np.exp(-(((x[0] - point[0])**2 + (x[1] - point[1])**2) / (params.alpha**2))))
-    return g1
+    return g
 
-def solveStateEquation(V: fem.FunctionSpace, sources, signals, params):
-    g = fem.Function(V)
+def solveStateEquation(sources, signals, params):
+    g = fem.Function(params.V)
     g.x.array[:] = signals[0](0) * sources[0].x.array + signals[1](0) * sources[1].x.array
     control = [g]
 
-    u0 = fem.Function(V)
+    u0 = fem.Function(params.V)
     u0.interpolate(lambda x : np.zeros(x[0].shape))
-    u1 = fem.Function(V)
+    u1 = fem.Function(params.V)
     u1.interpolate(lambda x : np.zeros(x[0].shape))
     solution = [u1]
 
-    u = ufl.TrialFunction(V)
-    v = ufl.TestFunction(V)
+    u = ufl.TrialFunction(params.V)
+    v = ufl.TestFunction(params.V)
     c = (params.dt**2 * params.waveSpeed**2)
 
     a = inner(u,  v) * dx + c * inner(grad(u),grad(v)) * dx
@@ -42,7 +42,7 @@ def solveStateEquation(V: fem.FunctionSpace, sources, signals, params):
         u0.x.array[:] = u1.x.array
         u1.x.array[:] = u.x.array
         g.x.array[:] = signals[0](t) * sources[0].x.array + signals[1](t) * sources[1].x.array
-        copy = fem.Function(V)
+        copy = fem.Function(params.V)
         copy.x.array[:] = g.x.array
         control.append(copy)
     

@@ -30,3 +30,10 @@ def getValueOfFunction(V: fem.FunctionSpace, function: fem.Function, point_list:
     points_on_proc = np.array(points_on_proc, dtype=np.float64)
     u_values = function.eval(points_on_proc, cells)
     return (u_values[:])
+
+def buildIterationFunction(t, active_set, weights: np.ndarray, slope: np.ndarray, y_shift: np.ndarray, params):
+	value = np.zeros_like(slope)
+	for idx, func in enumerate(active_set):
+		value += weights[idx] * func.value(t)
+	return_value = value + np.array(slope) * t + np.array(y_shift)
+	return return_value
