@@ -10,76 +10,81 @@ import pyvista
 from typing import List, Tuple
 from src.visualization import timeDependentVariableToGif, printControlFunction, plot_array
 from src.solveStateEquation import solveStateEquation, getSourceTerm
-from src.solveAdjointEquation import solveAdjointEquation
 from src.tools import getValueOfFunction, buildIterationFunction
 from src.ExtremalPoints import ExtremalPoint
 from src.HesseMatrix import HesseMatrix, calculateL2InnerProduct
 from dataclasses import dataclass
 import scipy
 
+# Dissertation zu semismooth Newton https://mediatum.ub.tum.de/doc/1241413/1241413.pdf
+
 def computeProxDifferential(x, active_set, params):
-    vector = np.zeros((len(active_set) + 2 * params.d,))
+    vector = np.ones_like(x)
     idx = 0
     while (idx < len(active_set)):
-        vector[idx] = 1. if x[idx] > 1 / float(params.newton_c) else 0.
-        idx += 1
-    while (idx < len(active_set) + 2 * params.d):
-        vector[idx] = 1.
+        vector[idx] = 1. if x[idx] - 1. / float(params.newton_c) >= 0 else 0.
         idx += 1
     return np.diag(vector)
 
-def computeDifferential(x, active_set: List[ExtremalPoint], standard_states: List[fem.Function], params):
-    s1 = lambda t: buildIterationFunction(t, active_set, x[:len(active_set)], 
-                                        x[len(active_set): -params.d], x[-params.d:], params)[0]
-    s2 = lambda t: buildIterationFunction(t, active_set, x[:len(active_set)],
-                                        x[len(active_set): -params.d], x[-params.d:], params)[1]
-    g1 = getSourceTerm(params.x1, params)
-    g2 = getSourceTerm(params.x2, params)
-    K_u, __ = solveStateEquation([g1, g2], [s1, s2], params)
-    phi = [fem.Function(params.V) for _ in K_u]
-    for idx in range(len(phi)):
-        phi[idx].x.array[:] = 0 * K_u[idx].x.array - params.yd[idx].x.array
-    vector = np.zeros((len(active_set) + 2 * params.d,))
-    idx = 0
-    for extremal in active_set:
-        vector[idx] = calculateL2InnerProduct(phi, extremal.state, params)
-        idx += 1
-    for state in standard_states:
-        vector[idx] = calculateL2InnerProduct(phi, state, params)
+def computeProx(x, active_set, params):
+    prox = np.copy(x)
+    prox[:len(active_set)] = np.clip((x[:len(active_set)] - 1/float(params.newton_c) 
+                                      * np.ones_like(x[:len(active_set)])), a_min=0, a_max=None)
+    return prox
+
+def computeDifferential(x, hesse: HesseMatrix, vectorStandardInner, params):
+    vector = np.zeros_like(x)
+    vector[:] = hesse.matrix.dot(x) - vectorStandardInner + params.gamma * np.ones_like(x)
     return vector
+
+def computeObjective(x, active_set, standard_states, params):
+    phi = [fem.Function(params.V) for _ in params.yd]
+    for idx in range(len(phi)):
+        phi[idx].x.array[:] = -params.yd[idx].x.array
+        for j, func in enumerate(active_set):
+            phi[idx].x.array[:] += x[j] * func.state[idx].x.array
+        for j, func in enumerate(standard_states):
+            phi[idx].x.array[:] += x[len(active_set) + j] * func[idx].x.array
+    sum_points = 0
+    for i in range(len(active_set)):
+        sum_points += x[i]
+    norm_standard = 0
+    for i in range(2 * params.d):
+        norm_standard += x[len(active_set) + i]**2
+    return 0.5 * calculateL2InnerProduct(phi, phi, params) + sum_points
 
 def computeSemiNewtonStep(weights, slope, y_shift, active_set: List[ExtremalPoint], hesse: HesseMatrix, params) -> tuple[np.array, np.array, np.array]:
     n = len(active_set) + 2 * params.d
     standard_states = hesse.standard_states
-    DiffG = np.zeros((n, n))
-    x_k = np.zeros((n,))
-    x_k[:len(active_set) - 1] = weights
-    x_k[len(active_set) - 1] = 1.
-    x_k[len(active_set):-params.d] = slope
-    x_k[-params.d:] = y_shift
-    DP_c = np.zeros((n, n))
-    Df = np.zeros((n,))
-    identity = np.identity(n)
-    for k in range(10):
-        #print(k, 'Newton iterate: ', x_k)
-        DP_c = computeProxDifferential(x_k, active_set, params)
-        Df = computeDifferential(x_k, active_set, standard_states, params)
-        #print('iwdentity: ', identity.shape, 'DP_c: ', DP_c.shape, 'Df: ', Df.shape, 'hesse: ', hesse.matrix.shape)
-        DiffG = params.newton_c * (identity - DP_c) + np.matmul(hesse.matrix, DP_c)
-        #print(DiffG)
-        #print(np.linalg.det(1e5 * DiffG))
-        d_k = scipy.linalg.solve(DiffG, Df)
-        x_k += d_k
-        if np.linalg.norm(d_k) < 1e-5:
-            break
-
-    print('Newton solution: ', x_k)
-    return x_k[:len(active_set)], x_k[len(active_set): -params.d], x_k[-params.d:]
-
-def solveFinDimProblem(weights, slope, y_shift, params, active_set, yd):
-	x0 = np.zeros(len(active_set) + 2 * params.d)
-	x0[:len(active_set) - 1] = weights
-	x0[len(active_set) - 1] = 0.5
-	x0[-2*params.d:-params.d] = slope
-	x0[-params.d:] = y_shift
     
+    vectorStandardInner = np.zeros((n,))
+    for idx, func in enumerate(active_set):
+        vectorStandardInner[idx] = func.standardInner
+    for idx, func in enumerate(standard_states):
+        vectorStandardInner[len(active_set) + idx] = calculateL2InnerProduct(params.yd, standard_states[idx], params)
+
+    x_k = np.zeros((n,))
+    x_k[:len(active_set)] = weights
+    q = np.copy(x_k)
+    q[:len(active_set)] = x_k[:len(active_set)] + 1/params.newton_c * np.ones_like(x_k[:len(active_set)])
+    dq = np.zeros((n,))
+    identity = np.identity(n)
+    P_c = computeProx(q, active_set, params)
+    for k in range(20):
+        Df = computeDifferential(q, hesse, vectorStandardInner, params)
+        DP_c = computeProxDifferential(q, active_set, params)
+        DG = params.newton_c * (identity - DP_c) + np.matmul(hesse.matrix + params.gamma * identity, DP_c)
+        #print('DG:\n', DG)
+        #print('Helper:\n', np.matmul(hesse.matrix, DP_c))
+        #print('determinate newton system:', np.linalg.det(DG))
+        G = params.newton_c * (q - P_c) + Df + params.gamma * q
+        dq[:] = scipy.linalg.solve(DG, -G, 'sym')
+        q[:] = q + dq
+        #print(k, ': Newton iterate: ', computeProx(q, active_set, params))
+        if np.linalg.norm(dq) < 1e-8:
+            break
+        P_c = computeProx(q, active_set, params)
+        #print(k, ': Objective value: ', computeObjective(P_c, active_set, standard_states, params))
+
+    print('Newton solution: ', P_c)
+    return P_c[:len(active_set)], P_c[-2*params.d:-params.d], P_c[-params.d:]

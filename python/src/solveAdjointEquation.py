@@ -6,21 +6,24 @@ import numpy as np
 from typing import List
 from ufl import ds, dx, grad, inner
 import ufl
+from src.solveStateEquation import solveStateEquation
 
 def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
     control.reverse()
+    solution = solveStateEquation(control, params)
+    solution.reverse()
+    '''
     pT = fem.Function(params.V)
     pT.interpolate(lambda x : np.zeros(x[0].shape))
     pT1 = fem.Function(params.V)
     pT1.interpolate(lambda x : np.zeros(x[0].shape))
     solution = [pT]
-
     p = ufl.TrialFunction(params.V)
     v = ufl.TestFunction(params.V)
     c = (params.dt**2 * params.waveSpeed**2)
     g = fem.Function(params.V)
     g.x.array[:] = control[0].x.array
-    a = inner(p,  v) * dx + c * inner(grad(p),grad(v)) * dx
+    a =  inner(p,  v) * dx + c * inner(grad(p),grad(v)) * dx
     L = 2 * inner(pT, v) * dx - inner(pT1, v) * dx + c * inner(g, v) * dx
 
     interval = np.linspace(0, params.T, int(params.T / params.dt))
@@ -34,4 +37,5 @@ def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
         
     solution.reverse()
     control.reverse()
+    '''
     return solution

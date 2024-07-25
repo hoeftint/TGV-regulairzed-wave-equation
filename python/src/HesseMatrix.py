@@ -2,7 +2,7 @@ import numpy as np
 from ufl import ds, dx, grad, inner, dot
 from typing import List, Tuple
 from dolfinx import fem, mesh, plot, io, geometry
-from src.solveStateEquation import solveStateEquation, getSourceTerm
+from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
 from mpi4py import MPI
 
 def calculateL2InnerProduct(firstState: List[fem.Function], secondState: List[fem.Function], params) -> np.float64:
@@ -28,35 +28,35 @@ class HesseMatrix:
         for element in active_set:
             working_set.append(element)
             self.update(working_set)
-     
+
     def computeStandardEntries(self):
         states = []
-        signal_one = lambda t: t
+        signal_t = lambda t: t
         signal_zero = lambda t: 0
-        signal_t = lambda t: 1
+        signal_one = lambda t: 1
         g1 = getSourceTerm(self.params.x1, self.params)
         g2 = getSourceTerm(self.params.x2, self.params)
-        state, __ = solveStateEquation([g1, g2], [signal_t, signal_zero], self.params)
+        control = buildControlFunction([g1, g2], [signal_t, signal_zero], self.params)
+        state = solveStateEquation(control, self.params)
         states.append(state)
-        state, __ = solveStateEquation([g1, g2], [signal_zero, signal_t], self.params)
+        control = buildControlFunction([g1, g2], [signal_zero, signal_t], self.params)
+        state = solveStateEquation(control, self.params)
         states.append(state)
-        state, __ = solveStateEquation([g1, g2], [signal_one, signal_zero], self.params)
+        control = buildControlFunction([g1, g2], [signal_one, signal_zero], self.params)
+        state = solveStateEquation(control, self.params)
         states.append(state)
-        state, __ = solveStateEquation([g1, g2], [signal_zero, signal_one], self.params)
+        control = buildControlFunction([g1, g2], [signal_zero, signal_one], self.params)
+        state = solveStateEquation(control, self.params)
         states.append(state)
         return states
-    
-    #TODO: REFACTOR UPDATE FUNCTION
+
     def update(self, active_set):
         n = len(active_set) + 2 * self.params.d
-        new_matrix = np.zeros((n, n))
-        standard_block = self.matrix[-2 * self.params.d:, -2 * self.params.d:]
-        new_matrix[-2 * self.params.d:, -2 * self.params.d:] = standard_block
         idx = 0
         for extremal in self.active_set:
             if extremal not in active_set:
-                np.delete(self.matrix, idx, axis=0)
-                np.delete(self.matrix, idx, axis=1)
+                self.matrix = np.delete(self.matrix, idx, axis=0)
+                self.matrix = np.delete(self.matrix, idx, axis=1)
             else:
                 idx += 1
         new_row = np.ones(n)
@@ -64,17 +64,14 @@ class HesseMatrix:
         idx = 0
         for extremal in active_set:
             new_row[idx]  = calculateL2InnerProduct(new_state, extremal.state, self.params)
+            #print(calculateL2InnerProduct(new_state, extremal.state, self.params))
             idx += 1
         for state in self.standard_states:
             new_row[idx] = calculateL2InnerProduct(new_state, state, self.params)
-        temp_row = np.zeros(n - 1)
-        temp_row[:idx] = new_row[:idx]
-        temp_row[idx:] = new_row[idx + 1:]
-        print('new row:', new_row)
-        print('temp row:', temp_row)
-        temp_matrix = np.insert(self.matrix, idx, temp_row, axis=0)
-        self.matrix = np.insert(temp_matrix, idx, new_row, axis=1)
+            #print(calculateL2InnerProduct(new_state, state, self.params))
+            idx += 1
+        len_active_set = len(self.active_set)
+        temp_row = np.delete(new_row, len_active_set)
+        temp_matrix = np.insert(self.matrix, len_active_set, temp_row, axis=0)
+        self.matrix = np.insert(temp_matrix, len_active_set, new_row, axis=1)
         self.active_set = active_set[:]
-            
-        
-        
