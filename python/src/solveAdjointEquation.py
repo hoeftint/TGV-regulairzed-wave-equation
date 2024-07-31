@@ -9,10 +9,35 @@ import ufl
 from src.solveStateEquation import solveStateEquation
 
 def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
-    control.reverse()
-    solution = solveStateEquation(control, params)
+    pStart = fem.Function(params.V)
+    pStart.interpolate(lambda x : np.zeros(x[0].shape))
+    solution = [pStart]
+    pT = fem.Function(params.V)
+    pT.interpolate(lambda x : np.zeros(x[0].shape))
+    pT1 = fem.Function(params.V)
+    pT1.interpolate(lambda x : np.zeros(x[0].shape))
+    pT2 = fem.Function(params.V)
+    pT2.interpolate(lambda x : np.zeros(x[0].shape))
+    p = ufl.TrialFunction(params.V)
+    v = ufl.TestFunction(params.V)
+    c = (params.dt**2 * params.waveSpeed**2)
+    g = fem.Function(params.V)
+    g.x.array[:] = control[0].x.array
+    a =  2 * inner(p,  v) * dx + c * inner(grad(p),grad(v)) * dx
+    L = 5 * inner(pT, v)*dx -4 * inner(pT1, v) * dx + inner(pT2, v)*dx + c * inner(g, v) * dx
+    biggestIdx = int(params.T/params.dt)
+    for idx in range(biggestIdx):
+        g.x.array[:] = control[biggestIdx - idx].x.array
+        problem = LinearProblem(a, L, bcs=bcs, petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+        p = problem.solve()
+        solution.append(p)
+        pT2.x.array[:] = pT1.x.array
+        pT1.x.array[:] = pT.x.array
+        pT.x.array[:] = p.x.array
     solution.reverse()
-    '''
+    return solution
+        
+    '''control.reverse()
     pT = fem.Function(params.V)
     pT.interpolate(lambda x : np.zeros(x[0].shape))
     pT1 = fem.Function(params.V)
@@ -38,4 +63,3 @@ def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
     solution.reverse()
     control.reverse()
     '''
-    return solution

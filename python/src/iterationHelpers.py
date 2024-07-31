@@ -20,6 +20,9 @@ def calculateDiscreteGradient(u, yd, params):
 	for idx in range(len(phi)):
 		phi[idx].x.array[:] = K_u[idx].x.array - yd[idx].x.array
 	adjointState = solveAdjointEquation(phi, params)
+	#timeDependentVariableToGif(K_u, 'output/current_state.gif')
+	#timeDependentVariableToGif(phi, 'output/difference.gif')
+	#timeDependentVariableToGif(phi, 'output/difference_adjoint.gif')
 	#timeDependentVariableToGif(phi, filename="output/phi_state.gif", varname="state", slowMoFactor=2, T=params.T)
 	adjointValues = np.ndarray((len(adjointState), params.d), dtype=np.float64)
 	#timeDependentVariableToGif(adjointState, filename="output/adjoint_state.gif", varname="state", slowMoFactor=2, T=params.T)
@@ -39,7 +42,7 @@ def calculateDiscreteGradient(u, yd, params):
 def integrateVectorFunction(function, params):
 	integrated_function = np.zeros((len(function), params.d), dtype=np.float64)
 	integrated_function[0] = np.zeros((params.d,))
-	for idx in range(0, len(function) - 1):
+	for idx in range(len(function) - 1):
 		integrated_function[idx + 1] = integrated_function[idx] + function[idx]
 	integrated_function *= params.dt * params.T
 	return integrated_function

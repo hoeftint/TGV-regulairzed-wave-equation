@@ -16,14 +16,19 @@ def plot_function(function, T, dt, label='function', idx=None):
     else:
         plot_array(function_array[idx], T, label=label)
 
-def plot_array(array: np.ndarray, T, label='function'):
+def plot_array(array: np.ndarray, T, label='function', ax=None):
     timepoints = np.linspace(0, T, len(array))
-    mpl.pyplot.figure(figsize=(10, 6))
-    mpl.pyplot.plot(timepoints, array, marker='o', linestyle='-', color='b')
-    mpl.pyplot.xlabel('Time')
-    mpl.pyplot.ylabel(label)
-    mpl.pyplot.grid(True)
-    mpl.pyplot.show()
+    created_fig = False
+    if ax is None:
+        fig, ax = mpl.pyplot.subplots(figsize=(10, 6))
+        created_fig = True
+    #mpl.pyplot.figure(figsize=(10, 6))
+    ax.plot(timepoints, array, marker='o', linestyle='-', color='b')
+    ax.set_xlabel('Time')
+    ax.set_ylabel(label)
+    ax.grid(True)
+    if created_fig:
+        mpl.pyplot.show()
 
 def printControlFunction(V: fem.FunctionSpace, s1, s2, x1, x2, T=1, dt=0.01, alpha=0.1, slowMoFactor=1):
     g1 = getSourceTerm(V, x1, alpha)
@@ -41,13 +46,15 @@ def timeDependentVariableToGif(data: List[fem.Function], filename, varname="func
     def getMaximum(data):
         value = -100
         for function in data:
-            value = max(function.x.array.max(), value)
+            if function.x.array.max() > value:
+                value = function.x.array.max()
         return value
 
     def getMinimum(data):
         value = 100
         for function in data:
-            value = min(function.x.array.min(), value)
+            if function.x.array.min() < value:
+                value = function.x.array.min()
         return value
     
     grid = pyvista.UnstructuredGrid(*plot.vtk_mesh(data[0].function_space))

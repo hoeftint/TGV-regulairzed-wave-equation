@@ -26,20 +26,26 @@ def buildControlFunction(sources, signals, params):
     return control
 
 def solveStateEquation(control, params):
+    uStart = fem.Function(params.V)
+    uStart.interpolate(lambda x : np.zeros(x[0].shape))
+    solution = [uStart]
     u0 = fem.Function(params.V)
     u0.interpolate(lambda x : np.zeros(x[0].shape))
     u1 = fem.Function(params.V)
     u1.interpolate(lambda x : np.zeros(x[0].shape))
-    solution = [u1]
+    u2 = fem.Function(params.V)
+    u2.interpolate(lambda x : np.zeros(x[0].shape))
 
     u = ufl.TrialFunction(params.V)
     v = ufl.TestFunction(params.V)
     c = (params.dt**2 * params.waveSpeed**2)
     g = fem.Function(params.V)
     g.x.array[:] = control[0].x.array
-    a = inner(u,  v) * dx + c * inner(grad(u),grad(v)) * dx
+    #a = inner(u,  v) * dx + c * inner(grad(u),grad(v)) * dx
+    a = 2 * inner(u,  v) * dx + c * inner(grad(u),grad(v)) * dx
     # backward finite difference
-    L = 2*inner(u1, v)*dx - inner(u0, v)*dx + c * inner(g, v) * dx
+    #L = 2*inner(u1, v)*dx - inner(u0, v)*dx + c * inner(g, v) * dx
+    L = 5 * inner(u2, v)*dx - 4 * inner(u1, v)*dx + inner(u0, v)*dx + c * inner(g, v) * dx
 
     interval = np.linspace(0, params.T, int(params.T / params.dt))
     for idx in range(len(interval)):
@@ -48,6 +54,7 @@ def solveStateEquation(control, params):
         u = problem.solve()
         solution.append(u)
         u0.x.array[:] = u1.x.array
-        u1.x.array[:] = u.x.array
+        u1.x.array[:] = u2.x.array
+        u2.x.array[:] = u.x.array
     
     return solution

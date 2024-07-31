@@ -34,7 +34,7 @@ def computeProx(x, active_set, params):
 
 def computeDifferential(x, hesse: HesseMatrix, vectorStandardInner, params):
     vector = np.zeros_like(x)
-    vector[:] = hesse.matrix.dot(x) - vectorStandardInner + params.gamma * np.ones_like(x)
+    vector[:] = hesse.matrix.dot(x) - vectorStandardInner + params.gamma * x#np.ones_like(x)
     return vector
 
 def computeObjective(x, active_set, standard_states, params):
@@ -70,7 +70,8 @@ def computeSemiNewtonStep(weights, slope, y_shift, active_set: List[ExtremalPoin
     dq = np.zeros((n,))
     identity = np.identity(n)
     P_c = computeProx(q, active_set, params)
-    for k in range(20):
+    obj = -1
+    for k in range(params.maxNewtonSteps):
         Df = computeDifferential(q, hesse, vectorStandardInner, params)
         DP_c = computeProxDifferential(q, active_set, params)
         DG = params.newton_c * (identity - DP_c) + np.matmul(hesse.matrix + params.gamma * identity, DP_c)
@@ -81,10 +82,12 @@ def computeSemiNewtonStep(weights, slope, y_shift, active_set: List[ExtremalPoin
         dq[:] = scipy.linalg.solve(DG, -G, 'sym')
         q[:] = q + dq
         #print(k, ': Newton iterate: ', computeProx(q, active_set, params))
-        if np.linalg.norm(dq) < 1e-8:
-            break
         P_c = computeProx(q, active_set, params)
-        #print(k, ': Objective value: ', computeObjective(P_c, active_set, standard_states, params))
+        objOld = obj
+        obj = computeObjective(P_c, active_set, standard_states, params)
+        print(k, ': Objective value: ', obj)
+        if abs(obj - objOld) < 1e-8:
+            break
 
     print('Newton solution: ', P_c)
     return P_c[:len(active_set)], P_c[-2*params.d:-params.d], P_c[-params.d:]
