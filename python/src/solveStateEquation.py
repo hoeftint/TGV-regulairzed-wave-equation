@@ -1,12 +1,8 @@
-from dolfinx import fem, mesh, plot, io
-from dolfinx.fem.petsc import LinearProblem
-from petsc4py.PETSc import ScalarType
-from mpi4py import MPI
+from dolfinx import fem
 import numpy as np
-from ufl import ds, dx, grad, inner
+from ufl import dx, grad, inner
 import ufl
-import matplotlib as mpl
-import pyvista
+from typing import List
 
 def getSourceTerm(point, params) -> fem.Function:
     g = fem.Function(params.V)
@@ -25,7 +21,7 @@ def buildControlFunction(sources, signals, params):
         control.append(control_step)
     return control
 
-def solveStateEquation(control, params):
+def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function]:
     uStart = fem.Function(params.V)
     uStart.interpolate(lambda x : np.zeros(x[0].shape))
     solution = [uStart]
@@ -50,7 +46,7 @@ def solveStateEquation(control, params):
     interval = np.linspace(0, params.T, int(params.T / params.dt))
     for idx in range(len(interval)):
         g.x.array[:] = control[idx].x.array
-        problem = LinearProblem(a, L, bcs=[], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+        problem = fem.petsc.LinearProblem(a, L, bcs=[], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
         u = problem.solve()
         solution.append(u)
         u0.x.array[:] = u1.x.array

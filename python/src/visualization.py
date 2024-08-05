@@ -1,9 +1,11 @@
 from dolfinx import fem, mesh, plot, io
 import numpy as np
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import pyvista
 from src.solveStateEquation import getSourceTerm
 from typing import List
+from src.ExtremalPoints import ExtremalPoint
 
 def plot_function(function, T, dt, label='function', idx=None):
     num_steps = int(T/dt)
@@ -16,19 +18,26 @@ def plot_function(function, T, dt, label='function', idx=None):
     else:
         plot_array(function_array[idx], T, label=label)
 
+def printIterationInfo(iteration, active_set: List[ExtremalPoint], weights, slope, y_shift, hesseMatrix):
+    print(iteration, ': Active set:')
+    for idx, func in enumerate(active_set):
+        print('\t', idx, 'sigma=', func.sigma, ',\tx_0 =', func.x_0, 
+                ',\ttype =', func.type, '\tweight:', weights[idx], '\tid:', id(func))
+    print('slope: ', slope, 'y_shift', y_shift)
+    print(iteration, ': Hesse condition:', np.linalg.cond(hesseMatrix))
+    
 def plot_array(array: np.ndarray, T, label='function', ax=None):
     timepoints = np.linspace(0, T, len(array))
     created_fig = False
     if ax is None:
-        fig, ax = mpl.pyplot.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(10, 6))
         created_fig = True
-    #mpl.pyplot.figure(figsize=(10, 6))
     ax.plot(timepoints, array, marker='o', linestyle='-', color='b')
     ax.set_xlabel('Time')
     ax.set_ylabel(label)
     ax.grid(True)
     if created_fig:
-        mpl.pyplot.show()
+        plt.show()
 
 def printControlFunction(V: fem.FunctionSpace, s1, s2, x1, x2, T=1, dt=0.01, alpha=0.1, slowMoFactor=1):
     g1 = getSourceTerm(V, x1, alpha)

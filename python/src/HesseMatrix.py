@@ -3,16 +3,7 @@ from ufl import ds, dx, grad, inner, dot
 from typing import List, Tuple
 from dolfinx import fem, mesh, plot, io, geometry
 from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
-from mpi4py import MPI
-
-def calculateL2InnerProduct(firstState: List[fem.Function], secondState: List[fem.Function], params) -> np.float64:
-    sum = 0
-    for idx, __ in enumerate(firstState):
-        energy_form = fem.form(inner(firstState[idx], secondState[idx]) * dx)
-        energy_local = fem.assemble_scalar(energy_form)
-        energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
-        sum += energy_global
-    return sum * params.dt * params.T
+from src.helpers import calculateL2InnerProduct
 
 class HesseMatrix:
     def __init__(self, active_set, params) -> None:
@@ -26,8 +17,7 @@ class HesseMatrix:
                 self.matrix[i, j] = calculateL2InnerProduct(firstState, secondState, params)
         working_set = []
         for element in active_set:
-            working_set.append(element)
-            self.update(working_set)
+            self.extendHesse(element)
 
     def computeStandardEntries(self):
         states = []
@@ -50,28 +40,28 @@ class HesseMatrix:
         states.append(state)
         return states
 
-    def update(self, active_set):
-        n = len(active_set) + 2 * self.params.d
+    # If there is a new point contained in the input argument, build a bigger matrix
+    def extendMatrix(self, newPoint):
+        idxNewPoint = len(self.active_set)
+        newRow = np.zeros(len(self.active_set) + 1 + 2 * self.params.d)
+        for idx, point in enumerate(self.active_set):
+            newRow[idx] = calculateL2InnerProduct(newPoint.state, point.state, self.params)
+        newRow[idxNewPoint] = calculateL2InnerProduct(newPoint.state, newPoint.state, self.params)
+        for idx, state in enumerate(self.standard_states):
+            newRow[idxNewPoint + 1 + idx] = calculateL2InnerProduct(newPoint.state, state, self.params)
+        tempRow = np.delete(newRow, idxNewPoint)
+        tempMatrix = np.insert(self.matrix, idxNewPoint, tempRow, axis=0)
+        self.matrix = np.insert(tempMatrix, idxNewPoint, newRow, axis=1)
+        self.active_set.append(newPoint)
+        
+    def pruneMatrix(self, active_set, weights):
+        if (len(active_set) != len(weights)):
+            raise Exception('The size of active_set is not matching the size of weights')
         idx = 0
-        for extremal in self.active_set:
-            if extremal not in active_set:
+        for point in self.active_set:
+            if point not in active_set:
                 self.matrix = np.delete(self.matrix, idx, axis=0)
                 self.matrix = np.delete(self.matrix, idx, axis=1)
             else:
-                idx += 1
-        new_row = np.ones(n)
-        new_state = active_set[-1].state
-        idx = 0
-        for extremal in active_set:
-            new_row[idx]  = calculateL2InnerProduct(new_state, extremal.state, self.params)
-            #print(calculateL2InnerProduct(new_state, extremal.state, self.params))
-            idx += 1
-        for state in self.standard_states:
-            new_row[idx] = calculateL2InnerProduct(new_state, state, self.params)
-            #print(calculateL2InnerProduct(new_state, state, self.params))
-            idx += 1
-        len_active_set = len(self.active_set)
-        temp_row = np.delete(new_row, len_active_set)
-        temp_matrix = np.insert(self.matrix, len_active_set, temp_row, axis=0)
-        self.matrix = np.insert(temp_matrix, len_active_set, new_row, axis=1)
-        self.active_set = active_set[:]
+                idx = idx + 1
+        self.active_set[:] = active_set

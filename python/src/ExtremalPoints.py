@@ -5,12 +5,12 @@ from src.solveStateEquation import solveStateEquation, getSourceTerm, buildContr
 from src.HesseMatrix import calculateL2InnerProduct
 
 class ExtremalPoint:
-    def __init__(self, sigma: np.ndarray, x_0: float, type: bool, params, idx: int=None) -> None:
+    def __init__(self, sigma: np.ndarray, x_0: float, type: bool, params) -> None:
         self.sigma = sigma
         self.x_0 = x_0
         self.type = type
         self.params = params
-        self.idx = idx
+        self.idx = int(x_0/params.dt)
         self.state = self.computeState()
         if len(params.yd) > 0:
             self.standardInner = calculateL2InnerProduct(self.state, params.yd, params)

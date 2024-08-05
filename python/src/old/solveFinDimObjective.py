@@ -2,7 +2,7 @@ import numpy as np
 from mystic import solvers
 from src.solveStateEquation import solveStateEquation, getSourceTerm
 from dolfinx import fem
-from src.tools import buildIterationFunction
+from helpers import buildIterationFunction
 
 def finDimObjective(weights, slope, y_shift, params, active_set, yd):
 	u = lambda t: buildIterationFunction(t, active_set, weights, slope, y_shift, params)
