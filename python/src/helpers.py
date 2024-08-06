@@ -4,6 +4,24 @@ from typing import List
 from mpi4py import MPI
 from ufl import dx, inner
 
+def linCombFunctionLists(x: np.float64, list1: List[fem.Function], 
+                            y: np.float64, list2: List[fem.Function], params) -> List[fem.Function]:
+    if (len(list1) != len(list2) and len(list1) > 0 and len(list2) > 0):
+        raise ValueError(f"Both lists must have the same length, currently len(list1)={len(list1)}, len(list2)={len(list2)}")
+    if (len(list1) == 0 and len(list2) == 0):
+        raise ValueError("Both lists are empty")
+    comb = [fem.Function(params.V) for _ in list1]
+    if len(list1) == 0:
+        for idx in range(len(list2)):
+            comb[idx].x.array[:] = y * list2[idx].x.array
+    elif len(list2) == 0:
+        for idx in range(len(list1)):
+            comb[idx].x.array[:] = x * list1[idx].x.array
+    else:
+        for idx in range(len(list1)):
+            comb[idx].x.array[:] = x * list1[idx].x.array + y * list2[idx].x.array
+    return comb
+
 def getValueOfFunction(V: fem.FunctionSpace, function: fem.Function, point_list: List[tuple[float, float]]):
     msh = V.mesh
     msh.topology.create_connectivity(msh.topology.dim-1, msh.topology.dim)

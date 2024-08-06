@@ -3,12 +3,14 @@ from ufl import ds, dx, grad, inner, dot
 from typing import List, Tuple
 from dolfinx import fem, mesh, plot, io, geometry
 from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
+from src.solveAdjointEquation import solveAdjointEquation
 from src.helpers import calculateL2InnerProduct
 
 class HesseMatrix:
     def __init__(self, active_set, params) -> None:
         self.params = params
         self.standard_states = self.computeStandardEntries()
+        self.standard_adjoints = self.computeStandardAdjoints()
         self.active_set = []
         n = 2 * self.params.d
         self.matrix = np.zeros((n, n))
@@ -39,6 +41,13 @@ class HesseMatrix:
         state = solveStateEquation(control, self.params)
         states.append(state)
         return states
+    
+    def computeStandardAdjoints(self):
+        standardAdjoints = []
+        for state in self.standard_states:
+            adjoint = solveAdjointEquation(state, self.params)
+            standardAdjoints.append(adjoint)
+        return standardAdjoints
 
     # If there is a new point contained in the input argument, build a bigger matrix
     def extendMatrix(self, newPoint):

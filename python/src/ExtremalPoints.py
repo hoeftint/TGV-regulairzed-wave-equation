@@ -2,6 +2,7 @@ from enum import Enum
 import numpy as np
 from dolfinx import fem
 from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
+from src.solveAdjointEquation import solveAdjointEquation
 from src.HesseMatrix import calculateL2InnerProduct
 
 class ExtremalPoint:
@@ -12,6 +13,7 @@ class ExtremalPoint:
         self.params = params
         self.idx = int(x_0/params.dt)
         self.state = self.computeState()
+        self.adjoint = solveAdjointEquation(self.state, self.params)
         if len(params.yd) > 0:
             self.standardInner = calculateL2InnerProduct(self.state, params.yd, params)
 
