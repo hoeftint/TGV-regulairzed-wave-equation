@@ -1,4 +1,5 @@
 from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
+from src.solveAdjointEquation import solveAdjointEquation
 from src.ExtremalPoints import ExtremalPoint
 from dolfinx import fem
 from src.helpers import getValueOfFunction, linCombFunctionLists
@@ -15,7 +16,7 @@ def calculateDiscreteGradient(active_set: List[ExtremalPoint], weights, slope, y
 	#for idx in range(len(phi)):
 	#	phi[idx].x.array[:] = K_u[idx].x.array - params.yd[idx].x.array
 	#adjointState = solveAdjointEquation(phi, params)
-	adjointState = linCombFunctionLists(-1, params.adjoint_yd, 0, [], params)
+	adjointState = linCombFunctionLists(-1, params.yd_adjoint, 0, [], params)
 	for idx, func in enumerate(active_set):
 		adjointState = linCombFunctionLists(1, adjointState, weights[idx], func.adjoint, params)
 	for idx in range(params.d):
@@ -43,17 +44,56 @@ def calculateDiscreteGradient(active_set: List[ExtremalPoint], weights, slope, y
 	#print('Adjoint values',adjointValues)
 	return result
 
+def calculateFirstDual(active_set: List[ExtremalPoint], weights, slope, y_shift, standardFirstDuals, params):
+	g1 = getSourceTerm(params.x1, params)
+	g2 = getSourceTerm(params.x2, params)
+	'''
+	if not isinstance(params.yd_firstDual, np.ndarray):
+		dual = np.ndarray((len(params.yd_adjoint), params.d), dtype=np.float64)
+		for idx, func in enumerate(params.yd_adjoint):
+			energy_form = fem.form(inner(g1, func) * dx)
+			energy_local = fem.assemble_scalar(energy_form)
+			energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
+			dual[idx,0] = energy_global
+			energy_form = fem.form(inner(g2, func) * dx)
+			energy_local = fem.assemble_scalar(energy_form)
+			energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
+			dual[idx,1] = energy_global
+		params.yd_firstDual = integrateVectorFunction(dual, params)'''
+	primitiveState = []#linCombFunctionLists(0, [], 1, params.yd_firstDual, params)
+	for idx, func in enumerate(active_set):
+		primitiveState = linCombFunctionLists(1, primitiveState, weights[idx], func.firstDual, params)
+	for idx in range(params.d):
+		primitiveState = linCombFunctionLists(1, primitiveState, slope[idx], standardFirstDuals[idx], params)
+	for idx in range(params.d):
+		primitiveState = linCombFunctionLists(1, primitiveState, y_shift[idx], standardFirstDuals[params.d + idx], params)
+	adjointPrimitiveState = solveAdjointEquation(primitiveState, params)
+	firstDual = linCombFunctionLists(1, adjointPrimitiveState, -1, params.yd_firstDual, params)
+	result = np.ndarray((len(adjointPrimitiveState), params.d), dtype=np.float64)
+	for idx, func in enumerate(firstDual):
+		energy_form = fem.form(inner(g1, func) * dx)
+		energy_local = fem.assemble_scalar(energy_form)
+		energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
+		result[idx,0] = energy_global
+		energy_form = fem.form(inner(g2, func) * dx)
+		energy_local = fem.assemble_scalar(energy_form)
+		energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
+		result[idx,1] = energy_global
+	return result
+
 def integrateVectorFunction(function_array, params):
 	#integrated_function = scipy.integrate.cumulative_trapezoid(function_array, dx=params.dt, initial=0)
-	integrated_function = scipy.integrate.cumulative_trapezoid(function_array, dx=params.dt, initial=0)
+	integrated_function = np.zeros_like(function_array)
+	timePoints = np.linspace(0, params.T, num=len(integrated_function[:,0]))
+	integrated_function[:, 0] = scipy.integrate.cumulative_simpson(function_array[:,0], x=timePoints, initial=0)	
+	integrated_function[:, 1] = scipy.integrate.cumulative_simpson(function_array[:,1], x=timePoints, initial=0)
+	integrated_norm = np.zeros_like(function_array)
+	#integrated_norm[:, 0] = scipy.integrate.cumulative_simpson(np.absolute(function_array[:,0]), x=timePoints, initial=0)
+	#integrated_norm[:, 1] = scipy.integrate.cumulative_simpson(np.absolute(function_array[:,1]), x=timePoints, initial=0)
+	#num_error = integrated_function[-1]
+	#integrated_function[:, 0] = integrated_function[:, 0] - integrated_norm[:, 0] / integrated_norm[-1, 0] * num_error[0]
+	#integrated_function[:, 1] = integrated_function[:, 1] - integrated_norm[:, 1] / integrated_norm[-1, 1] * num_error[1]
 	return integrated_function
-	"""
-	integrated_function = np.zeros((len(function), params.d), dtype=np.float64)
-	integrated_function[0] = np.zeros((params.d,))
-	for idx in range(len(function) - 1):
-		integrated_function[idx + 1] = integrated_function[idx] + function[idx]
-	integrated_function *= params.dt * params.T
-	"""
 	
 def pruneActiveSet(active_set, weights, threshold):
 	new_active_set = []
@@ -76,3 +116,18 @@ def getIdxMax(value_array, active_set, type):
 		return -1
 	idx = np.argmax(clean_array)
 	return idx
+
+def showNonStationarity(discreteDf, active_set, params):
+    timePoints = np.linspace(0, params.T, num=len(discreteDf[:,0]))
+    firstConditionValues = np.zeros(2 * params.d)
+    firstConditionValues[:2] = integrateVectorFunction(discreteDf * timePoints[:, np.newaxis], params)[-1, :]
+    firstConditionValues[2:] = integrateVectorFunction(discreteDf, params)[-1, :]
+    print('First conditions: ', firstConditionValues, ' (should be close to 0)')
+    secondConditionValues = np.zeros(len(active_set))
+    for idx, func in enumerate(active_set):
+        array = np.ndarray((len(timePoints), params.d))
+        array[:,0] = np.array([func.value(t)[0] for t in timePoints])
+        array[:,1] = np.array([func.value(t)[1] for t in timePoints])
+        secondConditionValues[idx] = scipy.integrate.simpson(np.sum(discreteDf * array, axis=1), x=timePoints) + 1
+    print('Second conditions: ', secondConditionValues, ' (should be greater or equal than 0)')
+    

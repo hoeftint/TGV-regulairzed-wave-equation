@@ -10,14 +10,16 @@ def linCombFunctionLists(x: np.float64, list1: List[fem.Function],
         raise ValueError(f"Both lists must have the same length, currently len(list1)={len(list1)}, len(list2)={len(list2)}")
     if (len(list1) == 0 and len(list2) == 0):
         raise ValueError("Both lists are empty")
-    comb = [fem.Function(params.V) for _ in list1]
     if len(list1) == 0:
+        comb = [fem.Function(params.V) for _ in list2]
         for idx in range(len(list2)):
             comb[idx].x.array[:] = y * list2[idx].x.array
     elif len(list2) == 0:
+        comb = [fem.Function(params.V) for _ in list1]
         for idx in range(len(list1)):
             comb[idx].x.array[:] = x * list1[idx].x.array
     else:
+        comb = [fem.Function(params.V) for _ in list1]
         for idx in range(len(list1)):
             comb[idx].x.array[:] = x * list1[idx].x.array + y * list2[idx].x.array
     return comb

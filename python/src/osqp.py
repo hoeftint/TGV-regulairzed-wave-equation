@@ -27,7 +27,7 @@ def computeOSQPStep(weights, slope, y_shift, active_set: List[ExtremalPoint], he
         l[idx] = -np.inf
     u = np.ones_like(x) * np.inf
     A = sparse.identity(n)
-    prob.setup(P, q, A, l, u, alpha=1, verbose=False, eps_prim_inf=1e-10, eps_dual_inf=1e-10)
+    prob.setup(P, q, A, l, u, verbose=False, eps_abs=1e-12, eps_prim_inf=1e-12, eps_dual_inf=1e-12)
     #prob.warm_start(x=x)
     res = prob.solve()
     x = res.x
