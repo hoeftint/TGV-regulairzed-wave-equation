@@ -2,8 +2,7 @@ import numpy as np
 from ufl import ds, dx, grad, inner, dot
 from typing import List, Tuple
 from dolfinx import fem, mesh, plot, io, geometry
-from src.solveStateEquation import solveStateEquation, getSourceTerm, buildControlFunction
-from src.solveAdjointEquation import solveAdjointEquation
+from src.solutionOperators import solveStateEquation, getSourceTerm, buildControlFunction, solveAdjointEquation
 from src.helpers import calculateL2InnerProduct
 
 class HesseMatrix:
@@ -29,24 +28,37 @@ class HesseMatrix:
         signal_one = lambda t: 1
         g1 = getSourceTerm(self.params.x1, self.params)
         g2 = getSourceTerm(self.params.x2, self.params)
-        control = buildControlFunction([g1, g2], [signal_t, signal_zero], self.params)
-        state = solveStateEquation(control, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [signal_zero, signal_t], self.params)
-        state = solveStateEquation(control, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [signal_one, signal_zero], self.params)
-        state = solveStateEquation(control, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [signal_zero, signal_one], self.params)
-        state = solveStateEquation(control, self.params)
-        states.append(state)
+        if not self.params.useDummy:
+            control = buildControlFunction([g1, g2], [signal_t, signal_zero], self.params)
+            state = solveStateEquation(control, self.params)
+            states.append(state)
+            control = buildControlFunction([g1, g2], [signal_zero, signal_t], self.params)
+            state = solveStateEquation(control, self.params)
+            states.append(state)
+            control = buildControlFunction([g1, g2], [signal_one, signal_zero], self.params)
+            state = solveStateEquation(control, self.params)
+            states.append(state)
+            control = buildControlFunction([g1, g2], [signal_zero, signal_one], self.params)
+            state = solveStateEquation(control, self.params)
+            states.append(state)
+        else:
+            control = buildControlFunction([g1, g2], [signal_t, signal_zero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [signal_zero, signal_t], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [signal_one, signal_zero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [signal_zero, signal_one], self.params)
+            states.append(control)
         return states
     
     def computeStandardAdjoints(self):
         standardAdjoints = []
         for state in self.standard_states:
-            adjoint = solveAdjointEquation(state, self.params)
+            if not self.params.useDummy:
+                adjoint = solveAdjointEquation(state, self.params)
+            else:
+                adjoint = state
             standardAdjoints.append(adjoint)
         return standardAdjoints
     

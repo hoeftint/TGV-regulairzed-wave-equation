@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pyvista
-from src.solveStateEquation import getSourceTerm
 from typing import List
+from src.solutionOperators import getSourceTerm
 from src.ExtremalPoints import ExtremalPoint
 
 def plot_function(function, T, dt, label='function', idx=None):
@@ -72,7 +72,7 @@ def timeDependentVariableToGif(data: List[fem.Function], filename, varname="func
     warped = grid.warp_by_scalar(varname, factor=1)
     plotter = pyvista.Plotter()
     dt = T / float(len(data))
-    fps = T / dt / slowMoFactor
+    fps = 1 / dt / slowMoFactor
     if fps > 30:
         sparse_fps_rate = np.floor(fps / 30)
         fps = fps / sparse_fps_rate

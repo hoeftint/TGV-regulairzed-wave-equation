@@ -9,7 +9,7 @@ import matplotlib as mpl
 import pyvista
 from typing import List, Tuple
 from src.visualization import timeDependentVariableToGif, printControlFunction, plot_array
-from src.solveStateEquation import solveStateEquation, getSourceTerm
+from solutionOperators import solveStateEquation, getSourceTerm
 from src.tools import getValueOfFunction, buildIterationFunction
 from src.ExtremalPoints import ExtremalPoint
 from src.HesseMatrix import HesseMatrix, calculateL2InnerProduct

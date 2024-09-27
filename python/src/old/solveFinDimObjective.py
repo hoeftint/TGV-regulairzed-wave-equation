@@ -1,6 +1,6 @@
 import numpy as np
 from mystic import solvers
-from src.solveStateEquation import solveStateEquation, getSourceTerm
+from solutionOperators import solveStateEquation, getSourceTerm
 from dolfinx import fem
 from helpers import buildIterationFunction
 

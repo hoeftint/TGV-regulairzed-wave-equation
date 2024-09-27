@@ -48,7 +48,7 @@ def getValueOfFunction(V: fem.FunctionSpace, function: fem.Function, point_list:
         if len(colliding_cells.links(idx)) > 0:
             points_on_proc.append(point)
             cells.append(colliding_cells.links(idx)[0])
-          
+
     points_on_proc = np.array(points_on_proc, dtype=np.float64)
     u_values = function.eval(points_on_proc, cells)
     return (u_values[:])
@@ -78,6 +78,6 @@ def computeObjective(x, active_set, standard_states, params):
         for j, func in enumerate(standard_states):
             phi[idx].x.array[:] += x[len(active_set) + j] * func[idx].x.array
     sum_points = 0
-    for i in range(len(active_set)):
-        sum_points += x[i]
+    for i, func in enumerate(active_set):
+        sum_points += x[i] * (params.beta * func.type - params.alpha * (1 - func.type))
     return 0.5 * calculateL2InnerProduct(phi, phi, params) + sum_points
