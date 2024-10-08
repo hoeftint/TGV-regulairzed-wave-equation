@@ -9,23 +9,12 @@ import matplotlib as mpl
 import pyvista
 from typing import List, Tuple
 from src.visualization import timeDependentVariableToGif, printControlFunction, plot_array
-from src.semiSmoothNewtonSolver import computeObjective
 from src.solutionOperators import solveStateEquation, getSourceTerm
-from src.helpers import getValueOfFunction, buildIterationFunction
+from src.helpers import getValueOfFunction, buildIterationFunction, computeObjective
 from src.ExtremalPoints import ExtremalPoint
 from src.HesseMatrix import HesseMatrix, calculateL2InnerProduct
 from dataclasses import dataclass
 import scipy
-
-def computeMisfit(x, active_set, standard_states, params):
-	phi = [fem.Function(params.V) for _ in params.yd]
-	for idx in range(len(phi)):
-		phi[idx].x.array[:] = -params.yd[idx].x.array
-		for j, func in enumerate(active_set):
-			phi[idx].x.array[:] += x[j] * func.state[idx].x.array
-		for j, func in enumerate(standard_states):
-			phi[idx].x.array[:] += x[len(active_set) + j] * func[idx].x.array
-	return phi
 
 def computeDifferential(x, hesse: HesseMatrix, vectorStandardInner, reg):
 	vector = np.zeros_like(x)
@@ -34,7 +23,7 @@ def computeDifferential(x, hesse: HesseMatrix, vectorStandardInner, reg):
 
 def computeSSNStepWalter(weights, slope, y_shift, active_set: List[ExtremalPoint], hesse: HesseMatrix, params) -> tuple[np.array, np.array, np.array]:
 	n = len(active_set) + 2 * params.d
-	tol = 1e-12
+	tol = 1e-10
 	standard_states = hesse.standard_states
 	vectorStandardInner = np.zeros((n,))
 	for idx, func in enumerate(active_set):
@@ -54,7 +43,7 @@ def computeSSNStepWalter(weights, slope, y_shift, active_set: List[ExtremalPoint
 	q = point - computeDifferential(point, hesse, vectorStandardInner, reg)
 	point = np.copy(q)
 	point[:len(active_set)] = np.clip((q[:len(active_set)]), a_min=0, a_max=None)
-	for i in range(100):
+	for i in range(params.maxNewtonSteps):
 		G = q - point + computeDifferential(point, hesse, vectorStandardInner, reg)
 		#print('norm G: ',np.linalg.norm(G))#, '\tq: ', q, '\tpoint', point)
 		if (np.linalg.norm(G) <= tol):

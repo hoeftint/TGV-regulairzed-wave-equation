@@ -4,13 +4,15 @@ from typing import List, Tuple
 from dolfinx import fem, mesh, plot, io, geometry
 from src.solutionOperators import solveStateEquation, getSourceTerm, buildControlFunction, solveAdjointEquation
 from src.helpers import calculateL2InnerProduct
+from src.ExtremalPoints import ExtremalPoint
 
 class HesseMatrix:
     def __init__(self, active_set, params) -> None:
         self.params = params
         self.standard_states = self.computeStandardEntries()
         self.standard_adjoints = self.computeStandardAdjoints()
-        self.standard_firstDual = self.computeStandardFirstDual()
+        #self.standard_firstDual = self.computeStandardFirstDual()
+        #self.standard_secondDual = self.computeStandardSecondDual()
         self.active_set = []
         n = 2 * self.params.d
         self.matrix = np.zeros((n, n))
@@ -69,26 +71,71 @@ class HesseMatrix:
         primitiveZero = lambda t: 0
         g1 = getSourceTerm(self.params.x1, self.params)
         g2 = getSourceTerm(self.params.x2, self.params)
-        control = buildControlFunction([g1, g2], [primitiveLin, primitiveZero], self.params)
-        state = solveStateEquation(control, self.params)
-        firstDual = solveAdjointEquation(state, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [primitiveZero, primitiveLin], self.params)
-        state = solveStateEquation(control, self.params)
-        firstDual = solveAdjointEquation(state, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [primitiveConst, primitiveZero], self.params)
-        state = solveStateEquation(control, self.params)
-        firstDual = solveAdjointEquation(state, self.params)
-        states.append(state)
-        control = buildControlFunction([g1, g2], [primitiveZero, primitiveConst], self.params)
-        state = solveStateEquation(control, self.params)
-        firstDual = solveAdjointEquation(state, self.params)
-        states.append(state)
+        if not self.params.useDummy:
+            control = buildControlFunction([g1, g2], [primitiveLin, primitiveZero], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveLin], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveConst, primitiveZero], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveConst], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+        else:
+            control = buildControlFunction([g1, g2], [primitiveLin, primitiveZero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveLin], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveConst, primitiveZero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveConst], self.params)
+            states.append(control)
+        return states
+    
+    def computeStandardSecondDual(self):
+        states = []
+        primitiveConst = lambda t: 0.5 * t**2
+        primitiveLin = lambda t: 1/6 * t**3
+        primitiveZero = lambda t: 0
+        g1 = getSourceTerm(self.params.x1, self.params)
+        g2 = getSourceTerm(self.params.x2, self.params)
+        if not self.params.useDummy:
+            control = buildControlFunction([g1, g2], [primitiveLin, primitiveZero], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveLin], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveConst, primitiveZero], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveConst], self.params)
+            state = solveStateEquation(control, self.params)
+            firstDual = solveAdjointEquation(state, self.params)
+            states.append(firstDual)
+        else:
+            control = buildControlFunction([g1, g2], [primitiveLin, primitiveZero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveLin], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveConst, primitiveZero], self.params)
+            states.append(control)
+            control = buildControlFunction([g1, g2], [primitiveZero, primitiveConst], self.params)
+            states.append(control)
         return states
 
     # If there is a new point contained in the input argument, build a bigger matrix
-    def extendMatrix(self, newPoint):
+    def extendMatrix(self, newPoint: ExtremalPoint):
         idxNewPoint = len(self.active_set)
         newRow = np.zeros(len(self.active_set) + 1 + 2 * self.params.d)
         for idx, point in enumerate(self.active_set):

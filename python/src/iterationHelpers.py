@@ -31,7 +31,7 @@ def calculateDiscreteGradient(active_set: List[ExtremalPoint], weights, slope, y
 	result = buildControlFunctionAdjoint([g1, g2], adjointState, params)
 	return result
 
-def calculateFirstDual(active_set: List[ExtremalPoint], weights, slope, y_shift, standardFirstDuals, params):
+def calculateFirstDual(active_set: List[ExtremalPoint], weights, slope, y_shift, hesse: HesseMatrix, params):
 	g1 = getSourceTerm(params.x1, params)
 	g2 = getSourceTerm(params.x2, params)
 	'''
@@ -47,14 +47,16 @@ def calculateFirstDual(active_set: List[ExtremalPoint], weights, slope, y_shift,
 			energy_global = params.V.mesh.comm.allreduce(energy_local, op=MPI.SUM)
 			dual[idx,1] = energy_global
 		params.yd_firstDual = integrateVectorFunction(dual, params)'''
-	primitiveState = []#linCombFunctionLists(0, [], 1, params.yd_firstDual, params)
+	primitiveState = linCombFunctionLists(0, [], -1, params.yd_dual , params)
 	for idx, func in enumerate(active_set):
 		primitiveState = linCombFunctionLists(1, primitiveState, weights[idx], func.firstDual, params)
-	for idx in range(params.d):
-		primitiveState = linCombFunctionLists(1, primitiveState, slope[idx], standardFirstDuals[idx], params)
-	for idx in range(params.d):
-		primitiveState = linCombFunctionLists(1, primitiveState, y_shift[idx], standardFirstDuals[params.d + idx], params)
-	adjointPrimitiveState = solveAdjointEquation(primitiveState, params)
+	standard_weights = np.concatenate((slope, y_shift))
+	for idx, weight in enumerate(standard_weights):
+		primitiveState = linCombFunctionLists(1, primitiveState, weight, hesse.standard_firstDual[idx], params)
+	if not params.useDummy:
+		adjointPrimitiveState = solveAdjointEquation(primitiveState, params)
+	else:
+		adjointPrimitiveState = primitiveState
 	result = buildControlFunctionAdjoint([g1, g2], adjointPrimitiveState, params)
 	'''
 	firstDual = linCombFunctionLists(1, adjointPrimitiveState, -1, params.yd_firstDual, params)
@@ -70,8 +72,23 @@ def calculateFirstDual(active_set: List[ExtremalPoint], weights, slope, y_shift,
 	'''
 	return result
 
+def calculateSecondDual(active_set: List[ExtremalPoint], weights, slope, y_shift, hesse: HesseMatrix, params):
+	g1 = getSourceTerm(params.x1, params)
+	g2 = getSourceTerm(params.x2, params)
+	primitiveState = linCombFunctionLists(0, [], -1, params.yd_second_dual , params)
+	for idx, func in enumerate(active_set):
+		primitiveState = linCombFunctionLists(1, primitiveState, weights[idx], func.secondDual, params)
+	standard_weights = np.concatenate((slope, y_shift))
+	for idx, weight in enumerate(standard_weights):
+		primitiveState = linCombFunctionLists(1, primitiveState, weight, hesse.standard_secondDual[idx], params)
+	if not params.useDummy:
+		adjointPrimitiveState = solveAdjointEquation(primitiveState, params)
+	else:
+		adjointPrimitiveState = primitiveState
+	result = buildControlFunctionAdjoint([g1, g2], adjointPrimitiveState, params)
+	return -result
+
 def integrateVectorFunction(function_array, params):
-	#integrated_function = scipy.integrate.cumulative_trapezoid(function_array, dx=params.dt, initial=0)
 	integrated_function = np.zeros_like(function_array)
 	timePoints = np.linspace(0, params.T, num=len(integrated_function[:,0]))
 	integrated_function[:, 0] = scipy.integrate.cumulative_simpson(function_array[:,0], x=timePoints, initial=0)	
@@ -96,8 +113,8 @@ def pruneActiveSet(active_set: List[ExtremalPoint], weights, threshold):
 			new_weights.append(weights[idx])
 	return new_active_set, np.array(new_weights)
 	
-def getIdxMax(value_array, derivative_array, active_set, type):
-	exept_idcs = [func.idx for func in active_set if func.type == type]#func.type == type]
+def getIdxMax(value_array, active_set, type):
+	exept_idcs = [func.idx for func in active_set if func.type == type]
 	norm_array = np.linalg.norm(value_array, axis=1)
 	mask = np.zeros(norm_array.size, dtype=bool)
 	mask[exept_idcs] = True
