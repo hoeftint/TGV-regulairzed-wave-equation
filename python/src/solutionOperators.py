@@ -81,13 +81,6 @@ def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function
 	u = ufl.TrialFunction(params.V)
 	v = ufl.TestFunction(params.V)
 	g = fem.Function(params.V)
-	if False:
-		g.x.array[:] = control[-1].x.array
-		control_copy = [fem.Function(params.V) for _ in range(len(control))]
-		for func, copy in zip(control, control_copy):
-			copy.x.array[:] = func.x.array
-		control_copy.append(g)
-		return control_copy
 	g.x.array[:] = control[0].x.array
 
 	# diffusion
@@ -113,11 +106,6 @@ def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function
 	return solution 
 
 def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
-	if False:
-		control_copy = [fem.Function(params.V) for _ in range(len(control))]
-		for func, copy in zip(control, control_copy):
-			copy.x.array[:] = func.x.array
-		return control
 	pStart = fem.Function(params.V)
 	pStart.interpolate(lambda x : np.zeros(x[0].shape))
 	solution = [pStart]
@@ -150,3 +138,13 @@ def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
 		pT.x.array[:] = p.x.array
 	solution.reverse()
 	return solution
+
+def solveStateEquationVV(control: List[fem.Function], params) -> List[fem.Function]:
+	V_el = element("DG", params.msh.basix_cell(), 0)
+	P_el = element("DG", params.msh.basix_cell(), 0)
+	W_el = mixed_element([V_el, P_el])
+	W = fem.functionspace(params.msh, W_el)
+	(eta, xi) = ufl.TestFunctions(W)
+	(u, v) = ufl.TrialFunctions(W)
+	X = ufl.SpatialCoordinate(params.msh)
+	return []

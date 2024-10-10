@@ -22,7 +22,15 @@ def calculateL2InnerProduct(firstState: List[fem.Function], secondState: List[fe
     timePoints = np.linspace(0, params.T, num=len(array))
     return scipy.integrate.simpson(array, x=timePoints)
 
-def computeObjective(x, active_set, standard_states, params):
+def computeObjective(x, active_set, standard_states, hesse, params, vectorStandardInner=None):
+    if vectorStandardInner is None:
+        n = len(active_set) + 2 * params.d
+        vectorStandardInner = np.zeros((n,))
+        for idx, func in enumerate(active_set):
+            vectorStandardInner[idx] = func.standardInner
+        for idx, func in enumerate(standard_states):
+            vectorStandardInner[len(active_set) + idx] = calculateL2InnerProduct(params.yd, standard_states[idx], params)
+    '''
     phi = [fem.Function(params.V) for _ in params.yd]
     for idx in range(len(phi)):
         phi[idx].x.array[:] = -params.yd[idx].x.array
@@ -30,10 +38,14 @@ def computeObjective(x, active_set, standard_states, params):
             phi[idx].x.array[:] += x[j] * func.state[idx].x.array
         for j, func in enumerate(standard_states):
             phi[idx].x.array[:] += x[len(active_set) + j] * func[idx].x.array
+    '''
     sum_points = 0
     for i, func in enumerate(active_set):
         sum_points += x[i] * (params.beta * func.type - params.alpha * (1 - func.type))
-    return 0.5 * calculateL2InnerProduct(phi, phi, params) + sum_points
+
+    #objective = 0.5 * calculateL2InnerProduct(phi, phi, params)
+    objective = 0.5 * np.dot(x.T, np.dot(hesse.matrix, x)) - np.dot(vectorStandardInner, x) + 0.5 * params.yd_inner + sum_points
+    return objective
 
 def linCombFunctionLists(weight1, list1: List[fem.Function], 
                             weight2, list2: List[fem.Function], params) -> List[fem.Function]:

@@ -19,7 +19,7 @@ class ExtremalPoint:
 
 	def value(self, x):
 		if (self.type == 0):
-			return (np.zeros_like(self.sigma) if x < self.x_0 else self.sigma)
+			return (np.zeros_like(self.sigma) if x <= self.x_0 else self.sigma)
 		else:
 			if self.x_0 < self.params.T/2:
 				return (self.sigma * (self.x_0 - x) if x < self.x_0 else np.zeros_like(self.sigma))
@@ -40,7 +40,7 @@ class ExtremalPoint:
 	
 	def computeFirstDualPart(self):
 		if self.type == 0:
-			primitive = lambda t: (0. if t < self.x_0 else t - self.x_0)
+			primitive = lambda t: (0. if t <= self.x_0 else t - self.x_0)
 		elif self.type == 1 and self.x_0 < self.params.T/2:
 			primitive = lambda t: (t * self.x_0 - 0.5 * t**2 if t < self.x_0 else 0.5 * self.x_0**2)
 		elif (self.type == 1 and self.x_0 >= self.params.T/2):
@@ -58,7 +58,7 @@ class ExtremalPoint:
 	
 	def computeSecondDualPart(self):
 		if self.type == 0:
-			primitive = lambda t: (0. if t < self.x_0 else 0.5 * t**2 - self.x_0 * t + 0.5 * self.x_0**2)
+			primitive = lambda t: (0. if t <= self.x_0 else 0.5 * t**2 - self.x_0 * t + 0.5 * self.x_0**2)
 		elif self.type == 1 and self.x_0 < self.params.T/2:
 			primitive = lambda t: (0.5 * t**2 * self.x_0 - 1/6 * t**3 if t < self.x_0 else 0.5 * t * self.x_0**2 - 1/6 * t**3 )
 		elif self.type == 1 and self.x_0 >= self.params.T/2:

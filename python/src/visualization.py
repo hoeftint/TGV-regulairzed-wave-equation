@@ -32,7 +32,7 @@ def plot_array(array: np.ndarray, T, label='function', ax=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 6))
         created_fig = True
-    ax.plot(timepoints, array, marker='o', linestyle='-', color='b')
+    ax.plot(timepoints, array, linestyle='-', color='b')
     ax.set_xlabel('Time')
     ax.set_ylabel(label)
     ax.grid(True)

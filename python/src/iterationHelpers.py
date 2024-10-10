@@ -98,6 +98,7 @@ def integrateVectorFunction(function_array, params):
 def pruneActiveSet(active_set: List[ExtremalPoint], weights, threshold):
 	newPoint = active_set[-1]
 	for idx in range(len(active_set) - 1):
+		break
 		if active_set[idx].type == newPoint.type and active_set[idx].x_0 == newPoint.x_0:
 			if weights[idx] <= threshold:
 				continue
@@ -116,14 +117,15 @@ def pruneActiveSet(active_set: List[ExtremalPoint], weights, threshold):
 def getIdxMax(value_array, active_set, type):
 	exept_idcs = [func.idx for func in active_set if func.type == type]
 	norm_array = np.linalg.norm(value_array, axis=1)
-	mask = np.zeros(norm_array.size, dtype=bool)
-	mask[exept_idcs] = True
-	mask[-1] = True
-	mask[0] = True
-	clean_array = np.ma.array(norm_array, mask=mask)
-	if clean_array.size == 0:
-		return -1
-	idx = np.argmax(clean_array)
+	#mask = np.zeros(norm_array.size, dtype=bool)
+	#mask[exept_idcs] = True
+	#mask[-1] = True
+	#mask[0] = True
+	#clean_array = np.ma.array(norm_array, mask=mask)
+	#if clean_array.size == 0:
+	#	return -1
+	#idx = np.argmax(clean_array)
+	idx = np.argmax(norm_array)
 	return idx
 
 def showNonStationarity(discreteDf, active_set, params):

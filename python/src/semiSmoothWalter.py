@@ -35,7 +35,7 @@ def computeSSNStepWalter(weights, slope, y_shift, active_set: List[ExtremalPoint
 	kind = np.array([point.type for point in active_set])
 	Id = np.identity(n)
 	theta = 1e-9
-	point = np.concatenate((np.abs(weights), slope, y_shift))
+	point = np.concatenate((weights, slope, y_shift))
 	reg = np.zeros_like(point)
 	reg[:len(active_set)] = params.beta * kind - params.alpha * (kind - 1)
 	#misfit = computeMisfit(point, active_set, hesse.standard_states, params)
@@ -54,22 +54,19 @@ def computeSSNStepWalter(weights, slope, y_shift, active_set: List[ExtremalPoint
 		#print('q: ', q, 'vector: ', vector)
 		D = np.diag(vector)
 		M = Id - D + np.matmul(hesse.matrix, D)
-		#print('M:', M)
-		#print('G', G)
-		#print('Condition:', np.linalg.cond(M))
 		theta /= 1000
 		dq = scipy.linalg.solve(M + theta * Id, G, 'pos')
 		qNew = q - dq
 		pointNew = np.copy(qNew)
 		pointNew[:len(active_set)] = np.clip((qNew[:len(active_set)]), a_min=0, a_max=None)
-		qDiff = computeObjective(pointNew, active_set, standard_states, params) - computeObjective(point, active_set, standard_states, params)
+		qDiff = computeObjective(pointNew, active_set, standard_states, hesse, params, vectorStandardInner) - computeObjective(point, active_set, standard_states, hesse, params, vectorStandardInner)
 		while qDiff > 1e-3:
 			theta = 2*theta
 			dq = scipy.linalg.solve(M + theta * Id, G, 'pos')
 			qNew = q - dq
 			pointNew = np.copy(qNew)
 			pointNew[:len(active_set)] = np.clip((qNew[:len(active_set)]), a_min=0, a_max=None)
-			qDiff = computeObjective(pointNew, active_set, standard_states, params) - computeObjective(point, active_set, standard_states, params)
+			qDiff = computeObjective(pointNew, active_set, standard_states, hesse, params, vectorStandardInner) - computeObjective(point, active_set, standard_states, hesse, params, vectorStandardInner)
 		q = qNew
 		point = pointNew
 
