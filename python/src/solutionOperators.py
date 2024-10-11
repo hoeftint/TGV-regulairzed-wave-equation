@@ -67,6 +67,7 @@ def buildControlFunctionAdjoint(sources, control, params):
 			signals[idx,j] = energy_global
 	return signals
 
+'''
 def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function]:
 	uStart = fem.Function(params.V)
 	uStart.interpolate(lambda x : np.zeros(x[0].shape))
@@ -103,7 +104,7 @@ def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function
 		u0.x.array[:] = u1.x.array
 		u1.x.array[:] = u2.x.array
 		u2.x.array[:] = u.x.array
-	return solution 
+	return solution
 
 def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
 	pStart = fem.Function(params.V)
@@ -138,13 +139,50 @@ def solveAdjointEquation(control: List[fem.Function], params, bcs=[]):
 		pT.x.array[:] = p.x.array
 	solution.reverse()
 	return solution
+'''
+def solveStateEquation(control: List[fem.Function], params) -> List[fem.Function]:
+	solution = []
+	# Set up time integration scheme:
+	u = fem.Function(params.V)
+	u_old = fem.Function(params.V)
+	u_mid = 0.5 * (u + u_old)
+	udot_old = fem.Function(params.V)
+	u_old.interpolate(lambda x: np.zeros_like(x[0]))
+	udot_old.interpolate(lambda x: np.zeros_like(x[0]))
+	v = ufl.TestFunction(params.V)
+	udot = 2/params.dt *u - 2/params.dt *u_old - udot_old
+	uddot = (udot - udot_old)/params.dt
 
-def solveStateEquationVV(control: List[fem.Function], params) -> List[fem.Function]:
-	V_el = element("DG", params.msh.basix_cell(), 0)
-	P_el = element("DG", params.msh.basix_cell(), 0)
-	W_el = mixed_element([V_el, P_el])
-	W = fem.functionspace(params.msh, W_el)
-	(eta, xi) = ufl.TestFunctions(W)
-	(u, v) = ufl.TrialFunctions(W)
-	X = ufl.SpatialCoordinate(params.msh)
-	return []
+	# Weak problem residual for wave equation:
+	g = fem.Function(params.V)
+	g.x.array[:] = control[0].x.array
+	g_old = fem.Function(params.V)
+	g_old.interpolate(lambda x: np.zeros_like(x[0]))
+	g_mid = 0.5 * (g + g_old)
+	res = inner(uddot,v) * dx + (params.waveSpeed**2) * inner(grad(u_mid),grad(v)) * dx - inner(g_mid , v) * dx
+
+
+	# Time stepping loop:
+	rhsForm = -res
+	lhsForm = ufl.derivative(res, u)
+	for i in range(len(control)):
+		temp = fem.Function(params.V)
+		temp.x.array[:] = u_old.x.array
+		solution.append(temp)
+		problem = LinearProblem(lhsForm, rhsForm, bcs=[], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+		du = problem.solve()
+		u.x.array[:] = u.x.array + du.x.array
+		udot_old.x.array[:] =  2/params.dt *u.x.array - 2/params.dt *u_old.x.array - udot_old.x.array
+		u_old.x.array[:] = u.x.array
+		if i < len(control) - 1:
+			g_old.x.array[:] = g.x.array
+			g.x.array[:] = control[i + 1].x.array
+	temp = fem.Function(params.V)
+	temp.x.array[:] = u_old.x.array
+	solution.append(temp)
+	return solution
+
+def solveAdjointEquation(control: List[fem.Function], params) -> List[fem.Function]:
+	control_rev = []
+	control_rev[:] = list(reversed(control))
+	return list(reversed(solveStateEquation(control_rev, params)))[:-1]
