@@ -10,7 +10,7 @@ from typing import List
 def getSourceTerm(point, params) -> fem.Function:
 	g = fem.Function(params.V)
 	g.interpolate(lambda x: np.clip(1 / (np.abs(params.mollify_const) * np.sqrt(np.pi)) *
-					np.exp(-(((x[0] - point[0])**2 + (x[1] - point[1])**2) / (params.mollify_const**2))), a_max=10, a_min=0))
+					np.exp(-(((x[0] - point[0])**2 + (x[1] - point[1])**2) / (params.mollify_const**2))), a_max=None, a_min=0))
 	return g
 
 def getSourceTerm2(point_list, params) -> fem.Function:

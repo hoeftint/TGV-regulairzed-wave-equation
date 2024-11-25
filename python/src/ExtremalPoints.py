@@ -1,11 +1,15 @@
-from enum import Enum
+from enum import IntEnum
 import numpy as np
 from dolfinx import fem
 from src.solutionOperators import solveStateEquation, getSourceTerm, buildControlFunction, solveAdjointEquation
 from src.helpers import calculateL2InnerProduct
 
 class ExtremalPoint:
-	def __init__(self, sigma: np.ndarray, x_0, type: bool, params) -> None:
+	class e_type(IntEnum):
+		JUMP = 0
+		KINK = 1
+
+	def __init__(self, sigma: np.ndarray, x_0, type: e_type, params) -> None:
 		self.sigma = sigma
 		self.x_0 = x_0
 		self.type = type
@@ -18,7 +22,7 @@ class ExtremalPoint:
 			self.standardInner = calculateL2InnerProduct(self.state, params.yd, params)
 
 	def value(self, x):
-		if (self.type == 0):
+		if (self.type == ExtremalPoint.e_type.JUMP):
 			return (np.zeros_like(self.sigma) if x <= self.x_0 else self.sigma)
 		else:
 			if self.x_0 < self.params.T/2:
@@ -39,11 +43,11 @@ class ExtremalPoint:
 		return state
 	
 	def computeFirstDualPart(self):
-		if self.type == 0:
+		if self.type == ExtremalPoint.e_type.JUMP:
 			primitive = lambda t: (0. if t <= self.x_0 else t - self.x_0)
-		elif self.type == 1 and self.x_0 < self.params.T/2:
+		elif self.type == ExtremalPoint.e_type.KINK and self.x_0 < self.params.T/2:
 			primitive = lambda t: (t * self.x_0 - 0.5 * t**2 if t < self.x_0 else 0.5 * self.x_0**2)
-		elif (self.type == 1 and self.x_0 >= self.params.T/2):
+		elif (self.type == ExtremalPoint.e_type.KINK and self.x_0 >= self.params.T/2):
 			primitive = lambda t: (0. if t < self.x_0 else 0.5 * t**2 - t * self.x_0)
 		s1 = lambda t: self.sigma[0] * primitive(t)
 		s2 = lambda t: self.sigma[1] * primitive(t)
@@ -57,11 +61,11 @@ class ExtremalPoint:
 		return state
 	
 	def computeSecondDualPart(self):
-		if self.type == 0:
+		if self.type == ExtremalPoint.e_type.JUMP:
 			primitive = lambda t: (0. if t <= self.x_0 else 0.5 * t**2 - self.x_0 * t + 0.5 * self.x_0**2)
-		elif self.type == 1 and self.x_0 < self.params.T/2:
+		elif self.type == ExtremalPoint.e_type.KINK and self.x_0 < self.params.T/2:
 			primitive = lambda t: (0.5 * t**2 * self.x_0 - 1/6 * t**3 if t < self.x_0 else 0.5 * t * self.x_0**2 - 1/6 * t**3 )
-		elif self.type == 1 and self.x_0 >= self.params.T/2:
+		elif self.type == ExtremalPoint.e_type.KINK and self.x_0 >= self.params.T/2:
 			primitive = lambda t: (0. if t < self.x_0 else 1/6 * t**3 - 0.5 * t**2 * self.x_0 + 1/3 * self.x_0**3)
 		s1 = lambda t: self.sigma[0] * primitive(t)
 		s2 = lambda t: self.sigma[1] * primitive(t)

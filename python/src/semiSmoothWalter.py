@@ -30,9 +30,7 @@ def computeSSNStepWalter(weights, slope, y_shift, active_set: List[ExtremalPoint
 		vectorStandardInner[idx] = func.standardInner
 	for idx, func in enumerate(standard_states):
 		vectorStandardInner[len(active_set) + idx] = calculateL2InnerProduct(params.yd, standard_states[idx], params)
-	#print('Vector standard inner', vectorStandardInner)
-	#print('Hesse:', hesse.matrix)
-	kind = np.array([point.type for point in active_set])
+	kind = np.array([point.type for point in active_set], dtype=int)
 	Id = np.identity(n)
 	theta = 1e-9
 	point = np.concatenate((weights, slope, y_shift))
