@@ -1,2 +1,4 @@
 python/output/
 python/src/__pycache__/
+python/src/plots/__pycache__/
+python/temp/
